@@ -1,15 +1,18 @@
-# phenobooth-analysis
+# Masters Thesis Jonas Sindlinger
 
-Analysis of phenobooth data from a library screen.
+Analysis of protoemics data from this paper: https://doi.org/10.1038/nbt.3418
+
 
 ## Requirements
 
-* [Anaconda](https://www.anaconda.com/)
-* Python 3 (comes included in Anaconda)
+* Python 3 
+* R
 * Git (or any Git client of your choice, e.g. [Github Desktop](https://desktop.github.com/))
 
 ## Installation
 
+
+ this should in the future be running a docker container
 * Create an anaconda environment called `phenobooth-analysis`, with Jupyter Notebook installed in it.
 * Clone locally this repository.
 * From an anaconda terminal, `cd` to this repository's root and then do:
