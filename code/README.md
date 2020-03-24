@@ -1,3 +1,4 @@
-Folder containing all programmatic code relating to the project.
+# Analysis Scripts in R
 
-* `parse_phenobooth_data.ipynb`: Jupyter notebook that loads the raw data from Phenobooth, merges it to gene information, creates normalized data and computes averages/standard deviations for each replicate group.
+### What's in here?
+Analysis scripts in R, that should all be executable from the command line, given the whole repository is on the path.
