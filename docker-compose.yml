@@ -1,0 +1,12 @@
+
+version: "3"
+services:
+  notebook:
+    hostname: notebook-server
+    ports:
+      - "8888:8888"
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./data_science:/home/jovyan/data_science
+    build: .

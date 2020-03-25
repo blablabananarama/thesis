@@ -13,6 +13,13 @@ Analysis of protoemics data from this paper: https://doi.org/10.1038/nbt.3418
 
 
  this should in the future be running a docker container
+* install docker if not already done
+* navigate to this file in the console and run:
+'''bash
+docker-compose run --service-ports notebook
+'''
+* after building a command prompt should open allowing you to open jupyter-notebooks
+
 * Create an anaconda environment called `phenobooth-analysis`, with Jupyter Notebook installed in it.
 * Clone locally this repository.
 * From an anaconda terminal, `cd` to this repository's root and then do:
@@ -25,20 +32,22 @@ Analysis of protoemics data from this paper: https://doi.org/10.1038/nbt.3418
 
 ## Repository Structure
 
-    |- code/            # all programmatic code relating to the project
-    |  +- templates/    # scripts for generating template files
-    |
-    |- data/            # all data from the study
-    |  |- raw_internal/ # raw data generated in-lab or by collaborators, will not be altered
-    |  |- raw_external/ # data from third-party sources, databases etc, will not be altered
-    |  |- intermediate/ # intermediate data on its way from raw to final
-    |  +- final/        # final data for figures/visualizations
+    |- data science
+    |  |- code/            # all programmatic code relating to the project
+    |  |   +- templates/    # scripts for generating template files
+    |  |
+    |  |- data/            # all data from the study
+    |  |  |- raw_internal/ # raw data generated in-lab or by collaborators, will not be altered
+    |  |  |- raw_external/ # data from third-party sources, databases etc, will not be altered
+    |  |  |- intermediate/ # intermediate data on its way from raw to final
+    |  |  +- final/        # final data for figures/visualizations
+    |  | 
+    |  |- results          # all output from workflows and analyses
+    |     |- figures/      # graphs, likely designated for manuscript figures
+    |     +- pictures/     # diagrams, images, and other non-graph graphics
     |
     |- doc/             # documentation for the study and other explanatory material
     |
-    |- results          # all output from workflows and analyses
-    |  |- figures/      # graphs, likely designated for manuscript figures
-    |  +- pictures/     # diagrams, images, and other non-graph graphics
     |
     |- .env             # file to store passwords and usernames needed for the scripts. This
     |                     will not get synced to GitHub.
@@ -53,7 +62,7 @@ Navigate to each folder's `README.md` to learn more about the corresponding sect
 
 ## Acknowledgments
 
-The initial file and directory structure of this project was developed by a group of participants in the Reproducible Science Curriculum Workshop, held at [NESCent] in December 2014. The structure is based on, and heavily follows the one proposed by [Noble 2009], with a few but small modifications. The [original repository] has been [modified] by Martin Engqvist and the one presented here differs in some ways.
+The initial file and directory structure of this project was developed by a group of participants in the Reproducible Science Curriculum Workshop, held at [NESCent] in December 2014. The structure is based on, and heavily follows the one proposed by [Noble 2009], with a few but small modifications. The [original repository] has been [modified] by Martin Engqvist and the one presented here differs in some ways. Additional modifictations have been added by Jonas Sindlinger.
 
 [modified]: https://github.com/EngqvistLab/reproducible-research-init
 [NESCent]: http://nescent.org
