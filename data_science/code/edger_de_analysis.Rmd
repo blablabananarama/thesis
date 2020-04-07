@@ -1,5 +1,30 @@
 #!/usr/bin/env Rscript
 
+Modify this line to briefly discribe the functionality of new_script.Rmd
+
+Copyright (C) 2017  Martin Engqvist Lab
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code.
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*.
+
+Setup file paths, load packages, etc.
+```{r setup}
 wants <- c('tidyverse', 'edgeR', 'limma', 'Glimma', 'ggplot2', 'piano', 'pheatmap', 'RColorBrewer', 'viridis', 'reshape2')
 has   <- wants %in% rownames(installed.packages())
 if(any(!has)) install.packages(wants[!has], repos="http://ftp.acc.umu.se/mirror/CRAN/")
@@ -21,7 +46,7 @@ getCurrentFileLocation <-  function()
     tidyr::separate(col=value, into=c("key", "value"), sep="=", fill='right') %>%
     dplyr::filter(key == "--file") %>%
     dplyr::pull(value)
-  if (length(this_file)==0)
+  if (length(this_file)==0 && rstudioapi::isAvailable())
   {
     this_file <- rstudioapi::getSourceEditorContext()$path
   }
@@ -48,8 +73,22 @@ FINAL = paste0(DATA, '/final/')
 RESULTS <- paste0(PROJ, '/results/')
 FIGURES <- paste0(RESULTS, 'figures/')
 PICTURES <- paste0(RESULTS, 'pictures/')
+```
 
 
+# Differential expression analysis 
+
+## Data:
+
+The data used in this notebook comes from the supplementary material of this paper: blabla
+It is resampled from counts that represent means and standard deviations.
+
+## Why EdgeR?
+- Uses count data 
+- does not use empirical models to moderate variances
+- 
+
+```{r Differential Expression analysis}
 ####################################################################################
 # Differential expression study starting from  count matrices 
 ####################################################################################
@@ -163,10 +202,10 @@ dgeObj <- estimateCommonDisp(dgeObj)
 dgeObj <- estimateGLMTrendedDisp(dgeObj)
 dgeObj <- estimateTagwiseDisp(dgeObj)
 
-if(!cli){
+
   plotBCV(dgeObj)
   plotMDS(dgeObj)
-}
+
 ####################################################################################
 # testing for differential expression
 ####################################################################################
@@ -200,77 +239,23 @@ for(i in 1:dim(contr)[2]){
   
   }
 
-# differentially expressed genes
-up_down_regulated_table <- as.data.frame(apply(results, MARGIN = 2, table))
-up_down_regulated_table["direction"] <- c("downregulated", "not significant", "upregulated")
-up_down_regulated_table_molten <- melt(up_down_regulated_table, id.vars="direction")
-
-ggplot(data=up_down_regulated_table_molten, aes(x=variable, y=value, fill=direction)) +
-  geom_bar(stat="identity") +
-  ggtitle("N genes Up- and Downregulated at alpha = 0.01") +
-  theme(axis.text.x = element_text(angle = 90))
-
-
-####################################################################################
-# piano GO analysis
-####################################################################################
-# load gene set, http://www.go2msig.org/cgi-bin/prebuilt.cgi?taxid=511145 , gene identifier: entrez
-# goSets <- loadGSC(file = paste0(RAW_EXTERNAL, "go_terms/Escherichia_coli_str_K12_substr_MG1655_GSEA_GO_sets_all_ids_April_2015.gmt"))
-
-# load gene set, http://ge-lab.org/gskb/ , gene identifier: gene names
-goSets <- loadGSC(file = paste0(RAW_EXTERNAL, "go_terms/Escherichia_coli_k12_intestinal-bacteria_gmt.gmt"))
-
-
-gsa_results <- list()
-# run gsa
-for(i in colnames(results_pValues)){
-   gsa_results[[i]] <- GSAsummaryTable(runGSA(results_pValues[i], directions = results_directions[i] ,geneSetStat = "fisher",  gsc=goSets, verbose=TRUE))
- 
-}
-
-# present results
-networkPlot(gsa_results$`LB-Glucose`)
-
-# upregulated 
-gsa_results_up = matrix(unlist(lapply(gsa_results, function(x) return(x["p (mix.dir.up)"]))), ncol = length(gsa_results))
+```
 
 
 
-png(file=paste0(FIGURES,"go_analysis/go-p-values-fisher-combined_basic-proteomics-dataset_upregulated.png"), width=600, height=900)
-pheatmap(mat = gsa_results_up, cluster_rows = F, color = inferno(10), labels_col = names(gsa_results))
-dev.off()
-
-# downregulated 
-gsa_results_down = matrix(unlist(lapply(gsa_results, function(x) return(x["p (mix.dir.dn)"]))), ncol = length(gsa_results))
-
-png(file=paste0(FIGURES,"go_analysis/go-p-values-fisher-combined_basic-proteomics-dataset_downregulated.png"), width=600, height=900)
-pheatmap(mat = gsa_results_down, cluster_rows = F, color = inferno(10), labels_col = names(gsa_results))
-dev.off()
 
 
-# both directions
-gsa_results_both = matrix(unlist(lapply(gsa_results, function(x) return(x["p (non-dir.)"]))), ncol = length(gsa_results))
-
-png(file=paste0(FIGURES,"go_analysis/go-p-values-fisher-combined_basic-proteomics-dataset_up-and-downregulated.png"), width=600, height=900)
-pheatmap(mat = gsa_results_both, cluster_rows = F, color = inferno(10), labels_col = names(gsa_results))
-dev.off()
-
-# BPs
-bps <- unlist(lapply(strsplit(gsa_results$`LB-Glucose`$Name, "_"), function(x) return (if(x[2]=="BP") T else F)))
-gsa_bps <- lapply(gsa_results, function(x) x[bps,])
 
 
-# plot top BPs
-unique(unlist(lapply(gsa_bps ,function (x) x$Name[order(x$`p (non-dir.)`)][1:10])))
 
 
-# uniques top ten of each
-lapply(gsa_results ,function (x) x$Name[order(x$`p (non-dir.)`)][1:10])
 
 
-####################################################################################
-# save 
-####################################################################################
 
-# save test output
-write.csv(results,paste0(FINAL, "de_edger_results_stress.csv"))
+
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
