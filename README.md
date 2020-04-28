@@ -15,10 +15,14 @@ Analysis of protoemics data from this paper: https://doi.org/10.1038/nbt.3418
  this should in the future be running a docker container
 * install docker if not already done
 * navigate to this file in the console and run:
-'''bash
+``` bash
 docker-compose run --service-ports notebook
-'''
+```
 * after building a command prompt should open allowing you to open jupyter-notebooks
+* to open a jupyter notebook run 
+```bash
+jupyter-notebook --allow-root
+```
 
 
 ## Repository Structure

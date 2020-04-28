@@ -211,6 +211,7 @@ ggplot(data=up_down_regulated_table_molten, aes(x=variable, y=value, fill=direct
   theme(axis.text.x = element_text(angle = 90))
 
 
+
 ####################################################################################
 # piano GO analysis
 ####################################################################################
@@ -224,53 +225,165 @@ goSets <- loadGSC(file = paste0(RAW_EXTERNAL, "go_terms/Escherichia_coli_k12_int
 gsa_results <- list()
 # run gsa
 for(i in colnames(results_pValues)){
-   gsa_results[[i]] <- GSAsummaryTable(runGSA(results_pValues[i], directions = results_directions[i] ,geneSetStat = "fisher",  gsc=goSets, verbose=TRUE))
- 
+  gsa_results[[i]] <- GSAsummaryTable(runGSA(results_pValues[i], directions = results_directions[i] ,geneSetStat = "fisher",  gsc=goSets, verbose=TRUE))
+  
 }
 
-# present results
-networkPlot(gsa_results$`LB-Glucose`)
 
+
+# present results
 # upregulated 
 gsa_results_up = matrix(unlist(lapply(gsa_results, function(x) return(x["p (mix.dir.up)"]))), ncol = length(gsa_results))
 
-
-
-png(file=paste0(FIGURES,"go_analysis/go-p-values-fisher-combined_basic-proteomics-dataset_upregulated.png"), width=600, height=900)
 pheatmap(mat = gsa_results_up, cluster_rows = F, color = inferno(10), labels_col = names(gsa_results))
-dev.off()
 
 # downregulated 
 gsa_results_down = matrix(unlist(lapply(gsa_results, function(x) return(x["p (mix.dir.dn)"]))), ncol = length(gsa_results))
 
-png(file=paste0(FIGURES,"go_analysis/go-p-values-fisher-combined_basic-proteomics-dataset_downregulated.png"), width=600, height=900)
 pheatmap(mat = gsa_results_down, cluster_rows = F, color = inferno(10), labels_col = names(gsa_results))
-dev.off()
-
 
 # both directions
 gsa_results_both = matrix(unlist(lapply(gsa_results, function(x) return(x["p (non-dir.)"]))), ncol = length(gsa_results))
 
-png(file=paste0(FIGURES,"go_analysis/go-p-values-fisher-combined_basic-proteomics-dataset_up-and-downregulated.png"), width=600, height=900)
 pheatmap(mat = gsa_results_both, cluster_rows = F, color = inferno(10), labels_col = names(gsa_results))
-dev.off()
+
+
 
 # BPs
+# find BPs
 bps <- unlist(lapply(strsplit(gsa_results$`LB-Glucose`$Name, "_"), function(x) return (if(x[2]=="BP") T else F)))
 gsa_bps <- lapply(gsa_results, function(x) x[bps,])
 
+# plot top BPs
+as.data.frame(lapply(gsa_bps ,function (x) x$Name[order(x$`p (non-dir.)`)][1:10]))
+
+# MFs
+# find MFs
+mfs <- unlist(lapply(strsplit(gsa_results$`LB-Glucose`$Name, "_"), function(x) return (if(x[2]=="MF") T else F)))
+gsa_mfs <- lapply(gsa_results, function(x) x[mfs,])
 
 # plot top BPs
-unique(unlist(lapply(gsa_bps ,function (x) x$Name[order(x$`p (non-dir.)`)][1:10])))
+as.data.frame(lapply(gsa_mfs ,function (x) x$Name[order(x$`p (non-dir.)`)][1:10]))
 
 
-# uniques top ten of each
-lapply(gsa_results ,function (x) x$Name[order(x$`p (non-dir.)`)][1:10])
+
+
+
+
+
 
 
 ####################################################################################
-# save 
+# save plots and files
 ####################################################################################
 
-# save test output
-write.csv(results,paste0(FINAL, "de_edger_results_stress.csv"))
+
+# Differential expression plots
+# differentially expressed genes
+up_down_regulated_table <- as.data.frame(apply(results, MARGIN = 2, table))
+up_down_regulated_table["direction"] <- c("downregulated", "not significant", "upregulated")
+up_down_regulated_table_molten <- melt(up_down_regulated_table, id.vars="direction")
+
+####################################################################################0.05
+# results = as.data.frame(matrix(0, ncol = 0, nrow = dim(dgeObj$counts)[1]))
+results = data.frame(matrix(nrow=nrow(counts.keep), ncol=0))
+rownames(results) = rownames(counts.keep)
+
+for(i in 1:dim(contr)[2]){
+  # fit using generalized linear model
+  fit <- glmFit(dgeObj, design)
+  lrt.BvsL <- glmLRT(fit, contrast = contr[,i])
+  
+  # results for overrepresentation analysis 
+  results[colnames(contr)[i]] = decideTests(lrt.BvsL, p.value=0.05)
+  
+}
+# differentially expressed genes
+up_down_regulated_table <- as.data.frame(apply(results, MARGIN = 2, table))
+up_down_regulated_table["direction"] <- c("downregulated", "not significant", "upregulated")
+up_down_regulated_table_molten <- melt(up_down_regulated_table, id.vars="direction")
+
+# cutoff 0.01
+png(file=paste0(FIGURES,"go_analysis/differential-expression_basic-proteomics-dataset_n-up-downregulated05.png"), width=900, height=600)
+ggplot(data=up_down_regulated_table_molten, aes(x=variable, y=value, fill=direction)) +
+  geom_bar(stat="identity") +
+  ggtitle("N genes Up- and Downregulated at alpha = 0.05") +
+  theme(axis.text.x = element_text(angle = 90))
+dev.off()
+####################
+################## 0.01
+# results = as.data.frame(matrix(0, ncol = 0, nrow = dim(dgeObj$counts)[1]))
+results = data.frame(matrix(nrow=nrow(counts.keep), ncol=0))
+rownames(results) = rownames(counts.keep)
+
+for(i in 1:dim(contr)[2]){
+  # fit using generalized linear model
+  fit <- glmFit(dgeObj, design)
+  lrt.BvsL <- glmLRT(fit, contrast = contr[,i])
+  
+  # results for overrepresentation analysis 
+  results[colnames(contr)[i]] = decideTests(lrt.BvsL, p.value=0.01)
+  
+}
+# differentially expressed genes
+up_down_regulated_table <- as.data.frame(apply(results, MARGIN = 2, table))
+up_down_regulated_table["direction"] <- c("downregulated", "not significant", "upregulated")
+up_down_regulated_table_molten <- melt(up_down_regulated_table, id.vars="direction")
+
+# cutoff 0.01
+png(file=paste0(FIGURES,"go_analysis/differential-expression_basic-proteomics-dataset_n-up-downregulated01.png"), width=900, height=600)
+ggplot(data=up_down_regulated_table_molten, aes(x=variable, y=value, fill=direction)) +
+  geom_bar(stat="identity") +
+  ggtitle("N genes Up- and Downregulated at alpha = 0.01") +
+  theme(axis.text.x = element_text(angle = 90))
+dev.off()
+####################
+################## 0.001
+# results = as.data.frame(matrix(0, ncol = 0, nrow = dim(dgeObj$counts)[1]))
+results = data.frame(matrix(nrow=nrow(counts.keep), ncol=0))
+rownames(results) = rownames(counts.keep)
+
+for(i in 1:dim(contr)[2]){
+  # fit using generalized linear model
+  fit <- glmFit(dgeObj, design)
+  lrt.BvsL <- glmLRT(fit, contrast = contr[,i])
+  
+  # results for overrepresentation analysis 
+  results[colnames(contr)[i]] = decideTests(lrt.BvsL, p.value=0.001)
+  
+}
+# differentially expressed genes
+up_down_regulated_table <- as.data.frame(apply(results, MARGIN = 2, table))
+up_down_regulated_table["direction"] <- c("downregulated", "not significant", "upregulated")
+up_down_regulated_table_molten <- melt(up_down_regulated_table, id.vars="direction")
+
+# cutoff 0.01
+png(file=paste0(FIGURES,"go_analysis/differential-expression_basic-proteomics-dataset_n-up-downregulated001.png"), width=900, height=600)
+ggplot(data=up_down_regulated_table_molten, aes(x=variable, y=value, fill=direction)) +
+  geom_bar(stat="identity") +
+  ggtitle("N genes Up- and Downregulated at alpha = 0.001") +
+  theme(axis.text.x = element_text(angle = 90))
+dev.off()
+####################################################################################
+
+
+# Go terms plots
+# upregulated
+png(file=paste0(FIGURES,"go_analysis/go-p-values-fisher-combined_basic-proteomics-dataset_upregulated.png"), width=450, height=900)
+pheatmap(mat = gsa_results_up, cluster_rows = F, color = inferno(10), labels_col = names(gsa_results), main = "P-values of GO terms for upregulated genes only")
+dev.off()
+
+# Downregulated
+png(file=paste0(FIGURES,"go_analysis/go-p-values-fisher-combined_basic-proteomics-dataset_downregulated.png"), width=450, height=900)
+pheatmap(mat = gsa_results_down, cluster_rows = F, color = inferno(10), labels_col = names(gsa_results), main = "P-values of GO terms for downregulated genes only")
+dev.off()
+
+# both directions
+png(file=paste0(FIGURES,"go_analysis/go-p-values-fisher-combined_basic-proteomics-dataset_up-and-downregulated.png"), width=450, height=900)
+pheatmap(mat = gsa_results_both, cluster_rows = F, color = inferno(10), labels_col = names(gsa_results), main = "P-values of GO terms for both up- and downregulated genes")
+dev.off()
+
+
+
+
+
