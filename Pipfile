@@ -17,6 +17,7 @@ requests = "*"
 seaborn = "*"
 ipykernel = "*"
 cameo = "*"
+python-dotenv = "*"
 
 [requires]
 python_version = "3.7"

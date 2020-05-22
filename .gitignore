@@ -39,3 +39,7 @@ code/.ipynb_checkpoints/
 # Binaries
 *.xls
 *.xlsx
+
+# 
+*.svg
+*.png

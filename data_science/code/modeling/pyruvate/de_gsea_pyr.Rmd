@@ -91,206 +91,45 @@ It is resampled from counts that represent means and standard deviations.
 ####################################################################################
 # Differential expression study starting from  count matrices 
 ####################################################################################
+source(paste0(PROJ,"/code/untitled folder/differential_expression_functions.R"))
 
+cli = length(args) == 0
 
 ####################################################################################
 # pre-processing (should in future be done in python and should only translate to matrix)
 ####################################################################################
 
 # read in raw data from file
-#count_matrix_df = read.csv(paste0(RAW_INTERNAL, "proteomics/protein_values.csv"))
-count_matrix_df = read.csv(paste0(RAW_EXTERNAL, "raw_proteomics_all.csv"))
-
-# remove repeated value
-# count_matrix_df <- count_matrix_df[!duplicated(count_matrix_df$Gene),]
-# count_matrix_df <- count_matrix_df[!is.na(count_matrix_df$Gene),]
-# count_matrix_df$Gene <- toupper(count_matrix_df$Gene)
-# 
-# start_column = grep("\\Glucose\\b", colnames(count_matrix_df))
-# end_column = grep("\\Fructose\\b", colnames(count_matrix_df))
-
-start_column_sc = grep("\\glucose.3\\b", colnames(count_matrix_df))
-end_column_sc = grep("\\glucose.5\\b", colnames(count_matrix_df))
-count_matrix_df = count_matrix_df[, -c(start_column_sc,start_column_sc+1,end_column_sc)]
-
-# start_column_unc = grep("\\Glucose.1\\b", colnames(count_matrix_df))
-# end_column_unc = grep("\\Fructose.1\\b", colnames(count_matrix_df))
-
-
-# extract uncertainty values from data
-# unc_matrix = data.matrix(count_matrix_df[,start_column_unc[1]:end_column_unc[1]])
-
-
-
-####################################################################################
-# Data computed from mean and std values  
-####################################################################################
-
-
-## Calculate the Counts Per Million measure
-# myCPM <- cpm(countdata)
-
-
-# Subset the rows of countdata without nan values
-#counts.keep <- count_matrix_df[,start_column[1]:end_column[1]]
-# set rownames to uniprot id
-# rownames(counts.keep) <- count_matrix_df$Gene
-# unc_matrix <- unc_matrix[complete.cases(counts.keep),]
-# counts.keep <- counts.keep[complete.cases(counts.keep),]
-# col_group <- rep(1:3, each=22)
-# 
-# # fake counts 
-# fake_counts = matrix(nrow=nrow(counts.keep), ncol = ncol(counts.keep)*2)
-# for(i in 0:1){
-#   for(j in 1:nrow(fake_counts)){
-#     for(k in 1:ncol(counts.keep)){
-#       fake_counts[j,k+(i*ncol(counts.keep))] = round(rnorm(1, counts.keep[j,k],unc_matrix[j,k]))
-#     }
-#   }
-# }
-# 
-# counts.keep <- cbind(counts.keep, as.data.frame(fake_counts))
-# colnames(counts.keep) <- sapply(c(1:dim(counts.keep)[2]), function(x) paste(colnames(counts.keep)[x], col_group[x], sep = ""))
-
-# remove unnecessary rows and columns
-count_matrix_df <- count_matrix_df[-c(1),]
-counts.keep <- count_matrix_df[, -c(1,2,3,4,5,6)]
-
-# remove duplicates
-counts.keep <- counts.keep[!duplicated(count_matrix_df$Frist_Gene),]
-# set rownames
-rownames(counts.keep) <- count_matrix_df$Frist_Gene[!duplicated(count_matrix_df$Frist_Gene)]
-
-## Convert to an edgeR object
-#group <- rep(1:22, 3)
-#dgeObj <- DGEList(counts.keep, group = group)
-
-
-#treatments = colnames(count_matrix_df[,start_column[1]:end_column[1]])
-treatments = unique(str_replace(colnames(counts.keep), "[:punct:][:digit:]$", ""))
-treatments = treatments[-c(9,18)]
-
-group <- rep(treatments, each = 3)
-dgeObj <- DGEList(data.matrix(counts.keep),genes = rownames(counts.keep), group = group)
-
-
-## Perform TMM normalisation
-#dgeObj <- calcNormFactors(dgeObj)
-dgeObj <- calcNormFactors(dgeObj, method = "TMM")
-
-
-
-
-####################################################################################
-# create design matrix from data matrix 
-####################################################################################
-# assuming rownames as treatments
-#treatments = colnames(count_matrix_df[,start_column[1]:end_column[1]])
-treatments = unique(str_replace(colnames(counts.keep), "[:punct:][:digit:]$", ""))
-treatments = treatments[-c(9,18)]
-
-# defining the design matrix
-#design <- rbind(model.matrix(~ -1 + treatments), model.matrix(~ -1 + treatments), model.matrix(~ -1 + treatments))
-
-factor <- factor(group)
-treatments_factors <- unlist(lapply(treatments, function(x) rep(x, 3))) 
-design <- model.matrix(~0+group, data=dgeObj$samples)
-
-# all against all combinations
-# combs = c(paste(combn(colnames(countdata), 2)[1,], "-",  combn(colnames(countdata), 2)[2,], sep = ""))
-
-# all against glucose combinations 
-#combs = sapply(treatments[2:length(treatments)], function(x){paste(x, "-Glucose", sep = "")}, USE.NAMES = FALSE)
-combs = sapply(treatments[1:length(treatments)], function(x){paste(x, "-glucose", sep = "")}, USE.NAMES = FALSE)
-combs = combs[-c(2)]
-
-# stress analysis against glucose
-# combs = sapply(treatments[15:17], function(x){paste(x, "-Glucose", sep = "")}, USE.NAMES = FALSE)
-
-# all stationary phase 
-
-
-# glucose vs complex (LB)
-
-
-# all chemostat
-
-
-#contr = makeContrasts(contrasts = combs, levels = factor(treatments))
-contr = makeContrasts(contrasts = combs, levels = factor(treatments))
+count_matrix_df = read.csv(paste0(INTERMEDIATE, "/proteomics/pyruvate_usages_counts.csv"))
+rownames(count_matrix_df) = count_matrix_df$X
+count_matrix_df = count_matrix_df[, -c(1)]
+count_matrix_df = count_matrix_df[count_matrix_df$pyr_1 > 0, ]
 
 
 ####################################################################################
 # estimate dispersion of the data  
 ####################################################################################
 
-dgeObj <- estimateCommonDisp(dgeObj, design=design, robust=TRUE)
-dgeObj <- estimateGLMTrendedDisp(dgeObj, design=design)
-dgeObj <- estimateTagwiseDisp(dgeObj, design=design)
 
+dgeObjList <- make_dge_and_contrasts(count_matrix_df, "pyr_original")
+dgeObj <- dgeObjList$dge_object
+contr <- dgeObjList$contrasts
+designMatrix <- dgeObjList$design
 
-plotBCV(dgeObj)
-plotMDS(dgeObj)
 
 ####################################################################################
 # testing for differential expression
 ####################################################################################
-# fit a linear model (generalized)
-# names(fit)
-# head(coef(fit))
-
-# create test results for all contrasts 
-# results = as.data.frame(matrix(0, ncol = 0, nrow = dim(dgeObj$counts)[1]))
-results = data.frame(matrix(nrow=nrow(counts.keep), ncol=0))
-rownames(results) = toupper(rownames(counts.keep))
 
 # volcano plot that works
-results_fc_volc = data.frame(logFC = c(),neg_log_pval = c())
-
-for(i in 1:dim(contr)[2]){
-  # fit using generalized linear model
-  fit <- glmFit(dgeObj, design)
-  lrt.BvsL <- glmLRT(fit, contrast = contr[,i])
-  
-  # results for overrepresentation analysis 
-  results[colnames(contr)[i]] = decideTests(lrt.BvsL, p.value=0.01)
-  
-  # results for Gene set enrichment analysis
-  # results need to be ordered as defined in the results df above
-  topResults = topTags(lrt.BvsL, n = dim(dgeObj$counts)[1])$table
-  
-  results_fc_volc = rbind(results_fc_volc,data.frame(logFC=topResults$logFC ,neg_log_pval = -log10(topResults$FDR)))
-}
-# volcano plot of negative log p values vs log FC 
-results_fc_volc =results_fc_volc[results_fc_volc$neg_log_pval != Inf ,]
-
-plot(results_fc_volc, pch=20, col = sapply(results_fc_volc$logFC, function(x) ifelse(abs(x) > 2, "red", "blue")), main = "Volcano plot of differential expression, blue: abs logFC > 2 ")
-
-
+volcano_plot_pipeline(dgeObj, contr)
 
 
 # p-values and fch as directions
-results_pValues = data.frame(matrix(nrow=nrow(counts.keep), ncol=0))
-rownames(results_pValues) = toupper(rownames(counts.keep))
-results_directions = data.frame(matrix(nrow=nrow(counts.keep), ncol=0))
-rownames(results_directions) = toupper(rownames(counts.keep))
 
-for(i in 1:dim(contr)[2]){
-  # fit using generalized linear model
-  fit <- glmFit(dgeObj, design)
-  lrt.BvsL <- glmLRT(fit, contrast = contr[,i])
-  
-  # results for overrepresentation analysis 
-  results[colnames(contr)[i]] = decideTests(lrt.BvsL, p.value=0.05)
-  
-  # results for Gene set enrichment analysis
-  # results need to be ordered as defined in the results df above
-  topResults = topTags(lrt.BvsL, n = dim(dgeObj$counts)[1])$table
-  
-  results_pValues[colnames(contr)[i]] = topResults[order(rownames(topResults)),]$FDR
-  results_directions[colnames(contr)[i]] = topResults[order(rownames(topResults)),]$logFC
-}
-
+results = run_diff_exp(dgeObj, designMatrix, contr)
+results_pValues = results$pValues
+results_directions = results$directions
 # use fold-change cutoff for the reduction of results
 #results_pValues = results_pValues[apply(results_directions, 1, function(x) !all(x<2)),]
 #results_directions = results_directions[apply(results_directions, 1, function(x) !all(x<2)),]
@@ -317,8 +156,6 @@ colnames(mf_offspring) = c("Offspring", "Parent")
 mf_offspring[mf_offspring["Offspring"] == strsplit(head(goSets$addInfo)[2,2], "; ")[[1]][1],]
 
 
-
-
 gsa_results <- list()
 # run gsa
 for(i in colnames(results_pValues)){
@@ -328,6 +165,7 @@ for(i in colnames(results_pValues)){
   error = function(e) e)
 }
 
+gsa_results$`pyr-pyr_original`$Name[gsa_results$`pyr-pyr_original`$`p (non-dir.)` < 0.1]
 
 
 # level specific go terms
@@ -485,7 +323,6 @@ ggplot(data=up_down_regulated_table_molten, aes(x=variable, y=value, fill=direct
   geom_bar(stat="identity") +
   ggtitle("N genes Up- and Downregulated at alpha = 0.01") +
   theme(axis.text.x = element_text(angle = 90))
-
 
 ```
 
