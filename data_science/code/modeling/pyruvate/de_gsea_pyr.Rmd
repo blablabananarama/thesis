@@ -128,11 +128,16 @@ volcano_plot_pipeline(dgeObj, contr)
 # p-values and fch as directions
 
 results = run_diff_exp(dgeObj, designMatrix, contr)
+#results = as.data.frame(results)[abs(results$directions) > 2, ]
+#results_pValues = results$pyr.pyr_original
+#results_directions = results$pyr.pyr_original.1
 results_pValues = results$pValues
 results_directions = results$directions
 # use fold-change cutoff for the reduction of results
-#results_pValues = results_pValues[apply(results_directions, 1, function(x) !all(x<2)),]
-#results_directions = results_directions[apply(results_directions, 1, function(x) !all(x<2)),]
+#results_rownames = rownames(results$pValues)[results$directions < 2]
+#results_pValues = list(results_pValues[results_directions<2,])
+#rownames(results_pValues) = results_rownames# results_pValues[apply(results_directions, 1, function(x) !all(x<2)),]
+#results_directions = results_directions[results_directions<2,] #[apply(results_directions, 1, function(x) !all(x<2)),]
 
 ```
 
@@ -156,16 +161,26 @@ colnames(mf_offspring) = c("Offspring", "Parent")
 mf_offspring[mf_offspring["Offspring"] == strsplit(head(goSets$addInfo)[2,2], "; ")[[1]][1],]
 
 
-gsa_results <- list()
+#gsa_results <- list()
 # run gsa
 for(i in colnames(results_pValues)){
   tryCatch({
-     gsa_results[[i]] <- GSAsummaryTable(runGSA(results_pValues[i], directions = results_directions[i] ,geneSetStat = "fisher",  gsc=goSets, verbose=TRUE))
+     gsa_results <- GSAsummaryTable(runGSA(results_pValues[i], directions = results_directions[i], geneSetStat = "fisher",  gsc=goSets, verbose=TRUE))
      },
   error = function(e) e)
 }
 
-gsa_results$`pyr-pyr_original`$Name[gsa_results$`pyr-pyr_original`$`p (non-dir.)` < 0.1]
+gsa_mat = gsa_results[, c(-1)]
+rownames(gsa_mat) = gsa_results$Name
+gsa_mat = gsa_mat[gsa_mat$`p (non-dir.)` < 0.1, ]
+gsa_mat = gsa_mat[,c(4,8,12)]
+
+png(file=paste0(FIGURES,"go_analysis/pyr_incorporation.png"), width=900, height=600)
+pheatmap(mat = gsa_mat, cluster_cols = F, color = inferno(10), labels_col = names(gsa_mat), labels_row = rownames(gsa_mat) , main = "Significantly up-and downregulated GO terms alpha = 0.01, log2fch = 2")
+dev.off()
+
+
+
 
 
 # level specific go terms
@@ -177,7 +192,6 @@ getAllChildrenObjects <- function(goIds){
   ans <- mget(goIds, GOBPCHILDREN)#, use.names=FALSE))
   return(ans)
 }
-
 
 
 # both directions BP ancestry

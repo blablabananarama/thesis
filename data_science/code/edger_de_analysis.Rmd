@@ -246,6 +246,7 @@ rownames(results) = toupper(rownames(counts.keep))
 
 # volcano plot that works
 results_fc_volc = data.frame(logFC = c(),neg_log_pval = c())
+results_fc_volc = data.frame(matrix(nrow=nrow(counts.keep), ncol=0))
 
 for(i in 1:dim(contr)[2]){
   # fit using generalized linear model
@@ -259,14 +260,18 @@ for(i in 1:dim(contr)[2]){
   # results need to be ordered as defined in the results df above
   topResults = topTags(lrt.BvsL, n = dim(dgeObj$counts)[1])$table
   
-  results_fc_volc = rbind(results_fc_volc,data.frame(logFC=topResults$logFC ,neg_log_pval = -log10(topResults$FDR)))
+  results_fc_volc = rbind(results_fc_volc,data.frame(logFC = topResults$logFC, neg_log_pval=-log10(topResults$FDR), contrast=rep(colnames(contr)[i], length(topResults$logFC))))
+  # colnames(results_fc_volc)[length(colnames(results_fc_volc))-1] = paste0(colnames(contr)[i], colnames(results_fc_volc)[length(colnames(results_fc_volc))-1])
+  # colnames(results_fc_volc)[length(colnames(results_fc_volc))] = paste0(colnames(contr)[i], colnames(results_fc_volc)[length(colnames(results_fc_volc))])
 }
 # volcano plot of negative log p values vs log FC 
 results_fc_volc =results_fc_volc[results_fc_volc$neg_log_pval != Inf ,]
 
-plot(results_fc_volc, pch=20, col = sapply(results_fc_volc$logFC, function(x) ifelse(abs(x) > 2, "red", "blue")), main = "Volcano plot of differential expression, blue: abs logFC > 2 ")
-
-
+results_fc_volc = results_fc_volc[1:10000,]
+#png(file=paste0(FIGURES,"go_analysis/volcano_plot_differential_expression_all.png"), width=900, height=600)
+ggplot() +
+    geom_point(data = results_fc_volc[(abs(results_fc_volc$logFC) <= 2) | (results_fc_volc$neg_log_pval <= 3), ], aes(logFC, neg_log_pval, colour = contrast)) +
+    geom_point(data = results_fc_volc[(abs(results_fc_volc$logFC) > 2) & (results_fc_volc$neg_log_pval > 3), ], aes(logFC, neg_log_pval, colour = contrast))
 
 
 # p-values and fch as directions
@@ -292,8 +297,8 @@ for(i in 1:dim(contr)[2]){
 }
 
 # use fold-change cutoff for the reduction of results
-#results_pValues = results_pValues[apply(results_directions, 1, function(x) !all(x<2)),]
-#results_directions = results_directions[apply(results_directions, 1, function(x) !all(x<2)),]
+results_pValues = results_pValues[apply(results_directions, 1, function(x) !all(x<2)),]
+results_directions = results_directions[apply(results_directions, 1, function(x) !all(x<2)),]
 
 ```
 
@@ -503,17 +508,17 @@ dev.off()
 # Go terms plots
 # upregulated
 png(file=paste0(FIGURES,"go_analysis/go-p-values-fisher-combined_basic-proteomics-dataset_upregulated.png"), width=900, height=600)
-pheatmap(mat = gsa_results_up, cluster_rows = F, color = inferno(10), labels_col = names(gsa_results), labels_row = rownames(gsa_results_up), main =  "Significantly upregulated GO terms alpha = 0.05, log2fch = 2")
+pheatmap(mat = gsa_results_up, cluster_rows = F, color = inferno(10), labels_col = names(gsa_results), labels_row = rownames(gsa_results_up),fontsize = 15 ,  main =  "Upregulated GO terms alpha = 0.05, log2fch = 2")
 dev.off()
 
 # Downregulated
 png(file=paste0(FIGURES,"go_analysis/go-p-values-fisher-combined_basic-proteomics-dataset_downregulated.png"), width=900, height=600)
-pheatmap(mat = gsa_results_down, cluster_rows = F, color = inferno(10), labels_col = names(gsa_results),labels_row = rownames(gsa_results_down), main = "Significantly downregulated GO terms alpha = 0.05, log2fch = 2")
+pheatmap(mat = gsa_results_down, cluster_rows = F, color = inferno(10), labels_col = names(gsa_results),labels_row = rownames(gsa_results_down),fontsize = 15 ,  main = "Downregulated GO terms alpha = 0.05, log2fch = 2")
 dev.off()
 
 # both directions
 png(file=paste0(FIGURES,"go_analysis/go-p-values-fisher-combined_basic-proteomics-dataset_up-and-downregulated.png"), width=900, height=600)
-pheatmap(mat = gsa_results_both, cluster_rows = F, color = inferno(10), labels_col = names(gsa_results), labels_row = rownames(gsa_results_both) , main = "Significantly up-and downregulated GO terms alpha = 0.01, log2fch = 2")
+pheatmap(mat = gsa_results_both, cluster_rows = F, color = inferno(10), labels_col = names(gsa_results), labels_row = rownames(gsa_results_both), fontsize = 15 , main = "Up-and downregulated GO terms alpha = 0.01, log2fch = 2")
 dev.off()
 
 
