@@ -1,0 +1,370 @@
+#!/usr/bin/env Rscript
+
+Modify this line to briefly discribe the functionality of new_script.Rmd
+
+Copyright (C) 2017  Martin Engqvist Lab
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code.
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*.
+
+Setup file paths, load packages, etc.
+```{r setup}
+wants <- c('tidyverse', 'edgeR', 'limma', 'Glimma', 'ggplot2', 'piano', 'pheatmap', 'RColorBrewer', 'viridis', 'reshape2', 'knitr')
+has   <- wants %in% rownames(installed.packages())
+if(any(!has)) install.packages(wants[!has], repos="http://ftp.acc.umu.se/mirror/CRAN/")
+
+########BIOCONDUCTOR DEPENDENCIES######################3
+
+########BIOCONDUCTOR DEPENDENCIES######################3
+
+
+#load all the packages
+lapply(wants, require, character.only = TRUE)
+
+
+#find the "code" directory, this should be one folder away from the project root
+getCurrentFileLocation <-  function()
+{
+  this_file <- commandArgs() %>%
+    tibble::enframe(name = NULL) %>%
+    tidyr::separate(col=value, into=c("key", "value"), sep="=", fill='right') %>%
+    dplyr::filter(key == "--file") %>%
+    dplyr::pull(value)
+  if (length(this_file)==0)
+  {
+    this_file <- rstudioapi::getSourceEditorContext()$path
+  }
+  return(dirname(this_file))
+}
+folder_vec <- unlist(strsplit(getCurrentFileLocation(), "/"))
+code_folder_location <- tail(which(folder_vec == "code"), n=1)
+code_folder_location <- paste(folder_vec[1:code_folder_location], collapse = '/')
+setwd(code_folder_location)
+
+#go one folder up and set as project root directory
+setwd("../")
+PROJ <- getwd()
+setwd(paste0(PROJ, '/data/'))
+
+#set folder paths relative to the project root
+CURRENT <- getwd()
+DATA <- getwd()
+RAW_EXTERNAL <- paste0(DATA, '/raw_external/')
+RAW_INTERNAL <- paste0(DATA, '/raw_internal/')
+INTERMEDIATE = paste0(DATA, '/intermediate/')
+FINAL = paste0(DATA, '/final/')
+
+RESULTS <- paste0(PROJ, '/results/')
+FIGURES <- paste0(RESULTS, 'figures/')
+PICTURES <- paste0(RESULTS, 'pictures/')
+```
+
+
+# Differential expression analysis 
+
+## Data:
+
+The data used in this notebook comes from the supplementary material of this paper: blabla
+It is resampled from counts that represent means and standard deviations.
+
+## Why EdgeR?
+- Uses count data 
+ 
+
+```{r Differential Expression analysis}
+####################################################################################
+# Differential expression study starting from  count matrices 
+####################################################################################
+source(paste0(PROJ,"/code/untitled folder/differential_expression_functions.R"))
+
+cli = length(args) == 0
+
+####################################################################################
+# pre-processing (should in future be done in python and should only translate to matrix)
+####################################################################################
+
+# read in raw data from file
+count_matrix_df = read.csv(paste0(INTERMEDIATE, "/proteomics/ac_usages_counts.csv"))
+rownames(count_matrix_df) = count_matrix_df$X
+count_matrix_df = count_matrix_df[, -c(1)]
+count_matrix_df = count_matrix_df[count_matrix_df$pyr_1 > 0, ]
+
+
+####################################################################################
+# estimate dispersion of the data  
+####################################################################################
+
+
+dgeObjList <- make_dge_and_contrasts(count_matrix_df, "pyr_original")
+dgeObj <- dgeObjList$dge_object
+contr <- dgeObjList$contrasts
+designMatrix <- dgeObjList$design
+
+
+####################################################################################
+# testing for differential expression
+####################################################################################
+
+# volcano plot that works
+volcano_plot_pipeline(dgeObj, contr)
+
+
+# p-values and fch as directions
+
+results = run_diff_exp(dgeObj, designMatrix, contr)
+results_pValues = results$pValues
+results_directions = results$directions
+# use fold-change cutoff for the reduction of results
+#results_pValues = results_pValues[apply(results_directions, 1, function(x) !all(x<2)),]
+#results_directions = results_directions[apply(results_directions, 1, function(x) !all(x<2)),]
+
+```
+
+
+```{r go term analysis}
+####################################################################################
+# piano GO analysis
+####################################################################################
+# load gene set, http://www.go2msig.org/cgi-bin/prebuilt.cgi?taxid=511145 , gene identifier: entrez
+# goSets <- loadGSC(file = paste0(RAW_EXTERNAL, "go_terms/Escherichia_coli_str_K12_substr_MG1655_GSEA_GO_sets_all_ids_April_2015.gmt"))
+
+
+
+# load gene set, http://ge-lab.org/gskb/ , gene identifier: gene names
+goSets <- loadGSC(file = paste0(RAW_EXTERNAL, "go_terms/Escherichia_coli_k12_intestinal-bacteria_gmt.gmt"))
+
+library(GO.db)
+
+mf_offspring = as.data.frame(GOMFOFFSPRING)
+colnames(mf_offspring) = c("Offspring", "Parent")
+mf_offspring[mf_offspring["Offspring"] == strsplit(head(goSets$addInfo)[2,2], "; ")[[1]][1],]
+
+
+gsa_results <- list()
+# run gsa
+for(i in colnames(results_pValues)){
+  tryCatch({
+     gsa_results[[i]] <- GSAsummaryTable(runGSA(results_pValues[i], directions = results_directions[i] ,geneSetStat = "fisher",  gsc=goSets, verbose=TRUE))
+     },
+  error = function(e) e)
+}
+
+gsa_results$`pyr-pyr_original`$Name[gsa_results$`pyr-pyr_original`$`p (non-dir.)` < 0.1]
+
+
+# level specific go terms
+getAllChildren <- function(goIds){
+  ans <- unique(unlist(mget(goIds, GOBPCHILDREN), use.names=FALSE))
+  return(ans[!is.na(ans)])
+}
+getAllChildrenObjects <- function(goIds){
+  ans <- mget(goIds, GOBPCHILDREN)#, use.names=FALSE))
+  return(ans)
+}
+
+
+
+# both directions BP ancestry
+gsa_results_both = matrix(unlist(lapply(gsa_results, function(x) return(x["p (non-dir.)"]))), ncol = length(gsa_results))
+rownames(gsa_results_both) <- gsa_results$`LB-Glucose`$Name
+# get matrix of only bps 
+gsa_results_both <- gsa_results_both[unlist(lapply(strsplit(rownames(gsa_results_both), "_"), function(x) x[2] == "BP")),]
+gsa_results_both <- gsa_results_both[apply(gsa_results_both, 1, function(x) !all(x>0.05)),]
+
+# go term names
+go_name_to_term <- lapply(goSets$addInfo[2:dim(goSets$addInfo)[1],2], function(x) unlist(strsplit(x, ";"))[1])
+names(go_name_to_term) <- goSets$addInfo[2:dim(goSets$addInfo)[1],1]
+
+# get the rows of 
+offspring <- unlist(sapply(rownames(gsa_results_both), function(x) go_name_to_term[x]))
+ancestors_uniques_list <- unique(unlist(sapply(offspring, function(x) as.list(GOBPANCESTOR[x]))))
+ancestors <- sapply(offspring, function(x) as.list(GOBPANCESTOR[x]))
+names(ancestors) <- names(anc)
+#ancestors <- unique(unlist(ancestors))
+
+# level lists of go terms
+level1_BP_terms <- getAllChildren("GO:0008150")     # 23 terms
+level2_BP_terms <- getAllChildren(level1_BP_terms)  # 256 terms
+level3_BP_terms <- getAllChildren(level2_BP_terms)  # 3059 terms
+level4_BP_terms <- getAllChildren(level3_BP_terms)  # 9135 terms
+level5_BP_terms <- getAllChildren(level4_BP_terms)  # 15023 terms
+
+# level objects of go terms
+level1_BP_terms_objects <- getAllChildrenObjects("GO:0008150")     # 23 terms
+level2_BP_terms_objects <- getAllChildrenObjects(level1_BP_terms)  # 256 terms
+level3_BP_terms_objects <- getAllChildrenObjects(level2_BP_terms)  # 3059 terms
+level4_BP_terms_objects <- getAllChildrenObjects(level3_BP_terms)  # 9135 terms
+level5_BP_terms_objects <- getAllChildrenObjects(level4_BP_terms)  # 15023 terms
+
+# reduce all objects to only the necessary ones
+level1_BP_graph_objects <- sapply(intersect(ancestors_uniques_list, names(level1_BP_terms_objects)), function(x) level1_BP_terms_objects[x])     # 23 terms
+names(level1_BP_graph_objects) <- unlist(strsplit(names(level1_BP_graph_objects), ".G"))[1]
+level2_BP_graph_objects <- sapply(intersect(ancestors_uniques_list, names(level2_BP_terms_objects)), function(x) level2_BP_terms_objects[x])  # 256 terms
+names(level2_BP_graph_objects) <- unlist(sapply(strsplit(names(level2_BP_graph_objects), ".G"), function(x) x[1]))
+level3_BP_graph_objects <- sapply(intersect(ancestors_uniques_list, names(level3_BP_terms_objects)), function(x) level3_BP_terms_objects[x])# 3059 terms
+names(level3_BP_graph_objects) <- unlist(sapply(strsplit(names(level3_BP_graph_objects), ".G"), function(x) x[1]))
+level4_BP_graph_objects <- sapply(intersect(ancestors_uniques_list, names(level4_BP_terms_objects)), function(x) level4_BP_terms_objects[x])  # 9135 terms
+names(level4_BP_graph_objects) <- unlist(sapply(strsplit(names(level4_BP_graph_objects), ".G"), function(x) x[1]))
+level5_BP_graph_objects <- sapply(intersect(ancestors_uniques_list, names(level5_BP_terms_objects)), function(x) level5_BP_terms_objects[x])  # 15023 terms
+names(level5_BP_graph_objects) <- unlist(sapply(strsplit(names(level5_BP_graph_objects), ".G"), function(x) x[1]))
+
+# plotting
+library(collapsibleTree)
+tree_data_frame <- data.frame(level1 = c(names(level4_BP_graph_objects)), level2 = c(names(level4_BP_graph_objects)), level3=c(names(level4_BP_graph_objects)), level4=c(names(level4_BP_graph_objects)), level5=c(names(level4_BP_graph_objects)))
+
+#
+tree_data_frame$level3 <- unlist(sapply(tree_data_frame$level4, function(x) names(level3_BP_graph_objects[unlist(sapply(level3_BP_graph_objects, function(y) x %in% y))])[1]))
+
+# iterate over 3rd level to find which lists in second contain the name
+tree_data_frame$level2 <- unlist(sapply(tree_data_frame$level3, function(x) names(level2_BP_graph_objects[unlist(sapply(level2_BP_graph_objects, function(y) x %in% y))])[1]))
+# iterate over 2nd level to find which lists in the first contain the name
+tree_data_frame$level1 <- unlist(sapply(tree_data_frame$level2, function(x) names(level1_BP_graph_objects[unlist(sapply(level1_BP_graph_objects, function(y) x %in% y))])[1]))
+
+
+
+
+# last column
+level5 <- sapply(tree_data_frame$level4, function(x) names(ancestors)[unlist(sapply(ancestors, function(y) x %in% y))])
+
+# tranlsoate
+tree_data_frame <- as.data.frame(apply(tree_data_frame, 2,function(x) sapply(x, function(y) mget(c(y),GOTERM,ifnotfound=NA)[[1]]@Term)))
+
+# add last column
+tree_data_frame$level5 <- sapply(strsplit(unlist(sapply(level5, function(x) x[1])), ".G"), function(y) y[1])
+library(collapsibleTree)
+# plot
+collapsibleTree(tree_data_frame, c("level2", "level3", "level4", "level5"), collapsed = FALSE)
+
+
+
+```
+
+# GO terms
+
+## why piano?
+- 
+
+
+```{r GO term analysis plotting}
+# present results
+# upregulated with a p value of 0.01
+gsa_results_up = matrix(unlist(lapply(gsa_results, function(x) return(x["p (mix.dir.up)"]))), ncol = length(gsa_results))
+rownames(gsa_results_up) = gsa_results[[1]]$Name
+gsa_results_up = gsa_results_up[apply(gsa_results_up, 1, function(x) !all(x>0.01)),]
+gsa_results_up = gsa_results_up[apply(gsa_results_up, 1, function(x) !all(is.na(x))),]
+
+
+pheatmap(mat = gsa_results_up, cluster_rows = F, color = inferno(10), labels_col = names(gsa_results), labels_row = rownames(gsa_results_up), main =  "Significantly upregulated GO terms alpha = 0.05, log2fch = 2")
+
+# downregulated 
+gsa_results_down = matrix(unlist(lapply(gsa_results, function(x) return(x["p (mix.dir.dn)"]))), ncol = length(gsa_results))
+rownames(gsa_results_down) = gsa_results[[1]]$Name
+gsa_results_down = gsa_results_down[apply(gsa_results_down, 1, function(x) !all(x>0.01)),]
+gsa_results_down = gsa_results_down[apply(gsa_results_down, 1, function(x) !all(is.na(x))),]
+
+
+pheatmap(mat = gsa_results_down, cluster_rows = F, color = inferno(10), labels_col = names(gsa_results),labels_row = rownames(gsa_results_down), main = "Significantly downregulated GO terms alpha = 0.05, log2fch = 2")
+
+
+
+# both directions
+gsa_results_both = matrix(unlist(lapply(gsa_results, function(x) return(x["p (non-dir.)"]))), ncol = length(gsa_results))
+rownames(gsa_results_both) = gsa_results[[1]]$Name
+gsa_results_both = gsa_results_both[apply(gsa_results_both, 1, function(x) !all(x>0.01)),]
+
+pheatmap(mat = gsa_results_both, cluster_rows = F, color = inferno(10), labels_col = names(gsa_results), labels_row = rownames(gsa_results_both) , main = "Significantly up-and downregulated GO terms alpha = 0.01, log2fch = 2")
+
+# BPs
+# find BPs
+bps <- unlist(lapply(strsplit(gsa_results$`LB-Glucose`$Name, "_"), function(x) return (if(x[2]=="BP") T else F)))
+gsa_bps <- lapply(gsa_results, function(x) x[bps,])
+
+# plot top BPs
+as.data.frame(lapply(gsa_bps ,function (x) x$Name[order(x$`p (non-dir.)`)][1:10]))
+
+# MFs
+# find MFs
+mfs <- unlist(lapply(strsplit(gsa_results$`LB-Glucose`$Name, "_"), function(x) return (if(x[2]=="MF") T else F)))
+gsa_mfs <- lapply(gsa_results, function(x) x[mfs,])
+
+# plot top BPs
+as.data.frame(lapply(gsa_mfs ,function (x) x$Name[order(x$`p (non-dir.)`)][1:10]))
+
+
+
+```
+
+# Differential expression Results
+
+
+```{r plot differential expression results}
+# differentially expressed genes
+up_down_regulated_table <- as.data.frame(apply(results, MARGIN = 2, table))
+up_down_regulated_table["direction"] <- c("downregulated", "not significant", "upregulated")
+up_down_regulated_table_molten <- melt(up_down_regulated_table, id.vars="direction")
+
+ggplot(data=up_down_regulated_table_molten, aes(x=variable, y=value, fill=direction)) +
+  geom_bar(stat="identity") +
+  ggtitle("N genes Up- and Downregulated at alpha = 0.01") +
+  theme(axis.text.x = element_text(angle = 90))
+
+```
+
+
+```{R save results}
+
+# Go terms plots
+# upregulated
+png(file=paste0(FIGURES,"go_analysis/logfc_volcano-plot_basic-proteomics-data.png"), width=900, height=600)
+plot(results_fc_volc, pch=20, col = sapply(results_fc_volc$logFC, function(x) ifelse(abs(x) > 2, "red", "blue")), main = "Volcano plot of differential expression, blue: abs logFC > 2 ")
+
+dev.off()
+
+
+# Go terms plots
+# upregulated
+png(file=paste0(FIGURES,"go_analysis/go-p-values-fisher-combined_basic-proteomics-dataset_upregulated.png"), width=900, height=600)
+pheatmap(mat = gsa_results_up, cluster_rows = F, color = inferno(10), labels_col = names(gsa_results), labels_row = rownames(gsa_results_up), main =  "Significantly upregulated GO terms alpha = 0.05, log2fch = 2")
+dev.off()
+
+# Downregulated
+png(file=paste0(FIGURES,"go_analysis/go-p-values-fisher-combined_basic-proteomics-dataset_downregulated.png"), width=900, height=600)
+pheatmap(mat = gsa_results_down, cluster_rows = F, color = inferno(10), labels_col = names(gsa_results),labels_row = rownames(gsa_results_down), main = "Significantly downregulated GO terms alpha = 0.05, log2fch = 2")
+dev.off()
+
+# both directions
+png(file=paste0(FIGURES,"go_analysis/go-p-values-fisher-combined_basic-proteomics-dataset_up-and-downregulated.png"), width=900, height=600)
+pheatmap(mat = gsa_results_both, cluster_rows = F, color = inferno(10), labels_col = names(gsa_results), labels_row = rownames(gsa_results_both) , main = "Significantly up-and downregulated GO terms alpha = 0.01, log2fch = 2")
+dev.off()
+
+
+```
+
+
+
+
+
+
+
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+

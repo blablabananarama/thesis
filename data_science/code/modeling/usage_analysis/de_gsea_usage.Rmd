@@ -100,7 +100,10 @@ cli = length(args) == 0
 ####################################################################################
 
 # read in raw data from file
-count_matrix_df = read.csv(paste0(FINAL, "usages/usages_combined_gecko.csv"))
+count_matrix_df = read.csv(paste0(FINAL, "usages_go_analysis/usages_combined_gecko.csv"))
+# remove duplicate values
+count_matrix_df = count_matrix_df[!duplicated(count_matrix_df$X), ]
+
 rownames(count_matrix_df) = count_matrix_df$X
 count_matrix_df = count_matrix_df[, -c(1)]
 count_matrix_df = count_matrix_df[apply(count_matrix_df[,-1], 1, function(x) !all(x==0)),]
@@ -108,7 +111,6 @@ count_matrix_df = count_matrix_df[apply(count_matrix_df[,-1], 1, function(x) !al
 ####################################################################################
 # estimate dispersion of the data  
 ####################################################################################
-
 
 dgeObjList <- make_dge_and_contrasts(count_matrix_df, "glucose")
 dgeObj <- dgeObjList$dge_object
@@ -160,14 +162,32 @@ colnames(mf_offspring) = c("Offspring", "Parent")
 mf_offspring[mf_offspring["Offspring"] == strsplit(head(goSets$addInfo)[2,2], "; ")[[1]][1],]
 
 
-#gsa_results <- list()
+gsa_results <- list()
 # run gsa
 for(i in colnames(results_pValues)){
   tryCatch({
-     gsa_results <- GSAsummaryTable(runGSA(results_pValues[i], directions = results_directions[i], geneSetStat = "fisher",  gsc=goSets, verbose=TRUE))
+     gsa_results[[i]] <- GSAsummaryTable(runGSA(results_pValues[i], directions = results_directions[i], geneSetStat = "fisher",  gsc=goSets, verbose=TRUE))
      },
   error = function(e) e)
 }
+
+
+# do the plotting here
+# create matrix
+gsa_mat = data.frame(matrix(vector(), nrow(gsa_results[[1]]), 0))
+# make rownames readable
+rownames(gsa_mat) = gsub("[A-Z]{2}_[A-Z]{2}_[A-Z]{2}_", "",gsa_results$`acetate-glucose`$Name)
+for(i in names(gsa_results)){
+  gsa_mat[[i]] = gsa_results[[i]]$`p (non-dir.)`
+}
+
+pheatmap(mat = gsa_mat, cluster_cols = F, color = inferno(10), labels_col = names(gsa_mat), labels_row = rownames(gsa_mat) , main = "Significantly up-and downregulated GO terms alpha = 0.01, log2fch = 2")
+
+
+
+
+
+
 
 gsa_mat = gsa_results[, c(-1)]
 rownames(gsa_mat) = gsa_results$Name

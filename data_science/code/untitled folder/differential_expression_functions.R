@@ -13,8 +13,10 @@ make_dge_and_contrasts = function(count_data_frame, contrast_column) {
   #        call. = FALSE)
   # }
   # 
-  treatments = unique(str_replace(colnames(count_data_frame), "_[0-9]$", ""))
+  treatments = unique(str_replace(colnames(count_data_frame), "[_.][0-9]$", ""))
   group <- rep(1:length(treatments), each = 3)
+  print(treatments)
+  print(group)
   dge_object <-
     DGEList(
       data.matrix(count_data_frame),
@@ -36,7 +38,7 @@ make_dge_and_contrasts = function(count_data_frame, contrast_column) {
   combs <- sapply(treatments[1:length(treatments)], function(x) {
     paste0(x, paste0("-", contrast_column))
   }, USE.NAMES = FALSE)
-  combs <- combs[-c(2)]
+  combs <- combs[-c(grep(paste("glucose", "glucose", sep = "-"),combs))]
   
   #contr = makeContrasts(contrasts = combs, levels = factor(treatments))
   contr <- makeContrasts(contrasts = combs, levels = factor(treatments))
